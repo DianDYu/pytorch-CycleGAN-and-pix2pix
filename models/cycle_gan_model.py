@@ -89,7 +89,6 @@ class CycleGANModel(BaseModel):
     def forward(self):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B)
-        print("@Dian: size of self.real_A ", str(len(self.real_A)))
         # Dian Take A + B as real images for M
         self.real_M = Variable(self.input_A + self.input_B)
 
@@ -129,7 +128,7 @@ class CycleGANModel(BaseModel):
     def backward_D_B(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
         loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
-        self.loss_D_B = loss_D_B.data[0]
+        self.loss_D_B = loss_D_B.data[0] * self.opt.lambda_M
 
     def backward_D_M(self):
         fake_M = self.fake_B_pool.query(self.fake_B)
@@ -170,9 +169,9 @@ class CycleGANModel(BaseModel):
         pred_fake = self.netD_B(fake_A)
         loss_G_B = self.criterionGAN(pred_fake, True)
 
-        # GAN loss D_M(G_A(A))
-        pred_fake = self.netD_M(fake_B)
-        loss_G_M = self.criterionGAN(pred_fake, True) * lambda_M
+        # # GAN loss D_M(G_A(A))
+        # pred_fake = self.netD_M(fake_B)
+        # loss_G_M = self.criterionGAN(pred_fake, True) * lambda_M
 
 
         # Forward cycle loss
@@ -183,7 +182,7 @@ class CycleGANModel(BaseModel):
         rec_B = self.netG_A(fake_A)
         loss_cycle_B = self.criterionCycle(rec_B, self.real_B) * lambda_B
         # combined loss
-        loss_G = loss_G_A + loss_G_B + loss_cycle_A + loss_cycle_B + loss_idt_A + loss_idt_B + loss_G_M
+        loss_G = loss_G_A + loss_G_B + loss_cycle_A + loss_cycle_B + loss_idt_A + loss_idt_B
         loss_G.backward()
 
         self.fake_B = fake_B.data
@@ -193,7 +192,7 @@ class CycleGANModel(BaseModel):
 
         self.loss_G_A = loss_G_A.data[0]
         self.loss_G_B = loss_G_B.data[0]
-        self.loss_G_M = loss_G_M.data[0]
+        # self.loss_G_M = loss_G_M.data[0]
         self.loss_cycle_A = loss_cycle_A.data[0]
         self.loss_cycle_B = loss_cycle_B.data[0]
 
@@ -219,7 +218,8 @@ class CycleGANModel(BaseModel):
 
     def get_current_errors(self):
         ret_errors = OrderedDict([('D_A', self.loss_D_A), ('G_A', self.loss_G_A), ('Cyc_A', self.loss_cycle_A),
-                                  ('D_B', self.loss_D_B), ('G_B', self.loss_G_B), ('Cyc_B', self.loss_cycle_B), ('G_M', self.loss_G_M)])
+                                  ('D_B', self.loss_D_B), ('G_B', self.loss_G_B), ('Cyc_B', self.loss_cycle_B), 
+                                  ('D_M', self.loss_D_M)])
         if self.opt.lambda_identity > 0.0:
             ret_errors['idt_A'] = self.loss_idt_A
             ret_errors['idt_B'] = self.loss_idt_B
