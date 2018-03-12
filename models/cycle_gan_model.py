@@ -31,13 +31,18 @@ class CycleGANModel(BaseModel):
             self.netD_B = networks.define_D(opt.input_nc, opt.ndf,
                                             opt.which_model_netD,
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
-        if not self.isTrain or opt.continue_train:
-            which_epoch = opt.which_epoch
-            self.load_network(self.netG_A, 'G_A', which_epoch)
-            self.load_network(self.netG_B, 'G_B', which_epoch)
-            if self.isTrain:
-                self.load_network(self.netD_A, 'D_A', which_epoch)
-                self.load_network(self.netD_B, 'D_B', which_epoch)
+            # Dian: another discriminator which feeds both dataset as real and the generated images as fake
+            # The goal is to check if the generated image "make sense". We call this discriminator as "middle"
+            self.netD_M = networks.define_D(opt.input_nc, opt.ndf,
+                                            opt.which_model_netD,
+                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
+        # if not self.isTrain or opt.continue_train:
+        #     which_epoch = opt.which_epoch
+        #     self.load_network(self.netG_A, 'G_A', which_epoch)
+        #     self.load_network(self.netG_B, 'G_B', which_epoch)
+        #     if self.isTrain:
+        #         self.load_network(self.netD_A, 'D_A', which_epoch)
+        #         self.load_network(self.netD_B, 'D_B', which_epoch)
 
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
@@ -51,11 +56,13 @@ class CycleGANModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_A = torch.optim.Adam(self.netD_A.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_B = torch.optim.Adam(self.netD_B.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D_M = torch.optim.Adam(self.netD_M.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers = []
             self.schedulers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D_A)
             self.optimizers.append(self.optimizer_D_B)
+            self.optimizers.append(self.optimizer_D_M)
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
 
@@ -65,6 +72,7 @@ class CycleGANModel(BaseModel):
         if self.isTrain:
             networks.print_network(self.netD_A)
             networks.print_network(self.netD_B)
+            networks.print_network(self.netD_M)
         print('-----------------------------------------------')
 
     def set_input(self, input):
@@ -119,6 +127,11 @@ class CycleGANModel(BaseModel):
         fake_A = self.fake_A_pool.query(self.fake_A)
         loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
         self.loss_D_B = loss_D_B.data[0]
+
+    def backward_D_M(self):
+        fake_M = self.fake_B_pool.query(self.fake_B)
+        loss_D_M = self.backward_D_basic(self.netD_M, self.real_M, fake_M)
+        self.loss_D_M = loss_D_M.data[0]
 
     def backward_G(self):
         lambda_idt = self.opt.lambda_identity
