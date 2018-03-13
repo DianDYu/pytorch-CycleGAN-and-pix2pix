@@ -93,7 +93,7 @@ class CycleGANModel(BaseModel):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B)
         # Dian Take A + B as real images for M
-        self.real_C = Variable(self.input_A + self.input_B + self.input_C)
+        self.real_C = Variable(self.input_C)
 
     def test(self):
         real_A = Variable(self.input_A, volatile=True)

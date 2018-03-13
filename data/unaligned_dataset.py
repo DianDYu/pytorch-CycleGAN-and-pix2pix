@@ -20,13 +20,15 @@ class UnalignedDataset(BaseDataset):
         self.A_paths = sorted(self.A_paths)
         self.B_paths = sorted(self.B_paths)
         self.C_paths = sorted(self.C_paths)
-
-        print("A_paths")
-        print(self.A_paths)
-        print("B_paths")
-        print(self.B_paths)
-        print("C_paths")
+        random.shuffle(self.C_paths)
         print(self.C_paths)
+
+        # print("A_paths")
+        # print(self.A_paths)
+        # print("B_paths")
+        # print(self.B_paths)
+        # print("C_paths")
+        # print(self.C_paths)
 
         self.A_size = len(self.A_paths)
         self.B_size = len(self.B_paths)
