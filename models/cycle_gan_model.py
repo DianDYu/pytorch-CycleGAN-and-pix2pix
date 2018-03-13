@@ -33,7 +33,7 @@ class CycleGANModel(BaseModel):
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
             # Dian: another discriminator which feeds both dataset as real and the generated images as fake
             # The goal is to check if the generated image "make sense". We call this discriminator as "middle"
-            self.netD_M = networks.define_D(opt.input_nc, opt.ndf,
+            self.netD_C = networks.define_D(opt.input_nc, opt.ndf,
                                             opt.which_model_netD,
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
         # if not self.isTrain or opt.continue_train:
@@ -47,6 +47,7 @@ class CycleGANModel(BaseModel):
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
             self.fake_B_pool = ImagePool(opt.pool_size)
+            self.real_C_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
             self.criterionCycle = torch.nn.L1Loss()
@@ -56,13 +57,13 @@ class CycleGANModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_A = torch.optim.Adam(self.netD_A.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_B = torch.optim.Adam(self.netD_B.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D_M = torch.optim.Adam(self.netD_M.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D_C = torch.optim.Adam(self.netD_C.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers = []
             self.schedulers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D_A)
             self.optimizers.append(self.optimizer_D_B)
-            self.optimizers.append(self.optimizer_D_M)
+            self.optimizers.append(self.optimizer_D_C)
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
 
@@ -72,25 +73,27 @@ class CycleGANModel(BaseModel):
         if self.isTrain:
             networks.print_network(self.netD_A)
             networks.print_network(self.netD_B)
-            networks.print_network(self.netD_M)
+            networks.print_network(self.netD_C)
         print('-----------------------------------------------')
 
     def set_input(self, input):
         AtoB = self.opt.which_direction == 'AtoB'
         input_A = input['A' if AtoB else 'B']
         input_B = input['B' if AtoB else 'A']
+        input_C = input['C']
         if len(self.gpu_ids) > 0:
             input_A = input_A.cuda(self.gpu_ids[0], async=True)
             input_B = input_B.cuda(self.gpu_ids[0], async=True)
         self.input_A = input_A
         self.input_B = input_B
+        self.input_C = input_C
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B)
         # Dian Take A + B as real images for M
-        self.real_M = Variable(self.input_A + self.input_B)
+        self.real_C = Variable(self.input_A + self.input_B + self.input_C)
 
     def test(self):
         real_A = Variable(self.input_A, volatile=True)
@@ -130,16 +133,16 @@ class CycleGANModel(BaseModel):
         loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
         self.loss_D_B = loss_D_B.data[0] * self.opt.lambda_M
 
-    def backward_D_M(self):
-        fake_M = self.fake_B_pool.query(self.fake_B)
-        loss_D_M = self.backward_D_basic(self.netD_M, self.real_M, fake_M)
-        self.loss_D_M = loss_D_M.data[0]
+    def backward_D_C(self):
+        fake_C = self.fake_B_pool.query(self.fake_B)
+        loss_D_C = self.backward_D_basic(self.netD_C, self.real_C, fake_C)
+        self.loss_D_C = loss_D_C.data[0]
 
     def backward_G(self):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
-        lambda_M = self.opt.lambda_M
+        lambda_C = self.opt.lambda_C
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
@@ -169,8 +172,8 @@ class CycleGANModel(BaseModel):
         pred_fake = self.netD_B(fake_A)
         loss_G_B = self.criterionGAN(pred_fake, True)
 
-        # # GAN loss D_M(G_A(A))
-        # pred_fake = self.netD_M(fake_B)
+        # # GAN loss D_C(G_A(A))
+        # pred_fake = self.netD_C(fake_B)
         # loss_G_M = self.criterionGAN(pred_fake, True) * lambda_M
 
 
@@ -211,15 +214,15 @@ class CycleGANModel(BaseModel):
         self.optimizer_D_B.zero_grad()
         self.backward_D_B()
         self.optimizer_D_B.step()
-        # D_M
-        self.optimizer_D_M.zero_grad()
-        self.backward_D_M()
-        self.optimizer_D_M.step()
+        # D_C
+        self.optimizer_D_C.zero_grad()
+        self.backward_D_C()
+        self.optimizer_D_C.step()
 
     def get_current_errors(self):
         ret_errors = OrderedDict([('D_A', self.loss_D_A), ('G_A', self.loss_G_A), ('Cyc_A', self.loss_cycle_A),
                                   ('D_B', self.loss_D_B), ('G_B', self.loss_G_B), ('Cyc_B', self.loss_cycle_B), 
-                                  ('D_M', self.loss_D_M)])
+                                  ('D_C', self.loss_D_C)])
         if self.opt.lambda_identity > 0.0:
             ret_errors['idt_A'] = self.loss_idt_A
             ret_errors['idt_B'] = self.loss_idt_B
@@ -244,4 +247,4 @@ class CycleGANModel(BaseModel):
         self.save_network(self.netD_A, 'D_A', label, self.gpu_ids)
         self.save_network(self.netG_B, 'G_B', label, self.gpu_ids)
         self.save_network(self.netD_B, 'D_B', label, self.gpu_ids)
-        self.save_network(self.netD_M, 'D_M', label, self.gpu_ids)
+        self.save_network(self.netD_C, 'D_C', label, self.gpu_ids)

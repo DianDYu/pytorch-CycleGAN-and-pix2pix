@@ -20,6 +20,7 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
     epoch_iter = 0
 
     for i, data in enumerate(dataset):
+        print("Dian: i: %d, data: %d", i, data)
         iter_start_time = time.time()
         if total_steps % opt.print_freq == 0:
             t_data = iter_start_time - iter_data_time
