@@ -131,7 +131,7 @@ class CycleGANModel(BaseModel):
     def backward_D_B(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
         loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
-        self.loss_D_B = loss_D_B.data[0] * self.opt.lambda_M
+        self.loss_D_B = loss_D_B.data[0] * self.opt.lambda_C
 
     def backward_D_C(self):
         fake_C = self.fake_B_pool.query(self.fake_B)
@@ -174,7 +174,7 @@ class CycleGANModel(BaseModel):
 
         # # GAN loss D_C(G_A(A))
         # pred_fake = self.netD_C(fake_B)
-        # loss_G_M = self.criterionGAN(pred_fake, True) * lambda_M
+        # loss_G_C = self.criterionGAN(pred_fake, True) * lambda_C
 
 
         # Forward cycle loss
@@ -195,7 +195,7 @@ class CycleGANModel(BaseModel):
 
         self.loss_G_A = loss_G_A.data[0]
         self.loss_G_B = loss_G_B.data[0]
-        # self.loss_G_M = loss_G_M.data[0]
+        # self.loss_G_C = loss_G_C.data[0]
         self.loss_cycle_A = loss_cycle_A.data[0]
         self.loss_cycle_B = loss_cycle_B.data[0]
 

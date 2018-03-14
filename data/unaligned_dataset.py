@@ -21,14 +21,6 @@ class UnalignedDataset(BaseDataset):
         self.B_paths = sorted(self.B_paths)
         self.C_paths = sorted(self.C_paths)
         random.shuffle(self.C_paths)
-        print(self.C_paths)
-
-        # print("A_paths")
-        # print(self.A_paths)
-        # print("B_paths")
-        # print(self.B_paths)
-        # print("C_paths")
-        # print(self.C_paths)
 
         self.A_size = len(self.A_paths)
         self.B_size = len(self.B_paths)
@@ -46,7 +38,6 @@ class UnalignedDataset(BaseDataset):
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
         C_path = self.C_paths[index % self.C_size]
-        # print('(A, B) = (%d, %d)' % (index_A, index_B))
         A_img = Image.open(A_path).convert('RGB')
         B_img = Image.open(B_path).convert('RGB')
         C_img = Image.open(C_path).convert('RGB')
