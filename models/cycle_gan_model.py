@@ -52,18 +52,21 @@ class CycleGANModel(BaseModel):
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
+            self.transferLoss = networks.TransferLoss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_A = torch.optim.Adam(self.netD_A.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_B = torch.optim.Adam(self.netD_B.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_C = torch.optim.Adam(self.netD_C.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_transfer = torch.optim.Adam(self.transferLoss.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers = []
             self.schedulers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D_A)
             self.optimizers.append(self.optimizer_D_B)
             self.optimizers.append(self.optimizer_D_C)
+            self.optimizers.append(self.optimizer_transfer)
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
 
@@ -200,6 +203,11 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_A = loss_cycle_A.data[0]
         self.loss_cycle_B = loss_cycle_B.data[0]
 
+    def backward_transfer(self):
+        input_img = self.fake_B_pool.query(self.fake_B)
+        loss_transfer = self.transferLoss(self.real_B, 1, input_img)
+        self.loss_transfer = loss_transfer.data[0]
+
     def optimize_parameters(self):
         # forward
         self.forward()
@@ -219,11 +227,15 @@ class CycleGANModel(BaseModel):
         self.optimizer_D_C.zero_grad()
         self.backward_D_C()
         self.optimizer_D_C.step()
+        # transfer
+        self.optimizer_transfer.zero_grad()
+        self.backward_transfer()
+        self.optimizer_transfer.step()
 
     def get_current_errors(self):
         ret_errors = OrderedDict([('D_A', self.loss_D_A), ('G_A', self.loss_G_A), ('Cyc_A', self.loss_cycle_A),
                                   ('D_B', self.loss_D_B), ('G_B', self.loss_G_B), ('Cyc_B', self.loss_cycle_B), 
-                                  ('D_C', self.loss_D_C)])
+                                  ('D_C', self.loss_D_C), ('transfer', self.loss_transfer)])
         if self.opt.lambda_identity > 0.0:
             ret_errors['idt_A'] = self.loss_idt_A
             ret_errors['idt_B'] = self.loss_idt_B

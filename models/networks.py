@@ -4,6 +4,11 @@ from torch.nn import init
 import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
+
+import torchvision.models as models
+import copy
+from gramMatrix import GramMatrix
+from styleloss import StyleLoss
 ###############################################################################
 # Functions
 ###############################################################################
@@ -121,7 +126,6 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
     init_weights(netG, init_type=init_type)
     return netG
 
-
 def define_D(input_nc, ndf, which_model_netD,
              n_layers_D=3, norm='batch', use_sigmoid=False, init_type='normal', gpu_ids=[]):
     netD = None
@@ -152,10 +156,53 @@ def print_network(net):
     print(net)
     print('Total number of parameters: %d' % num_params)
 
-
 ##############################################################################
 # Classes
 ##############################################################################
+
+# Defines the style/content transfer loss
+class TransferLoss(nn.Module):
+    def __init__(self):
+        super(TransferLoss, self).__init__()
+        self.style_layers = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
+        self.cnn = models.vgg19(pretrained=True).features
+        self.cnn = cnn.cuda()
+        self.cnn = copy.deepcopy(cnn)
+        self.style_losses = []
+        self.model = nn.Sequential()
+        self.gram = GramMatrix()
+        self.model = model.cuda()
+        self.gram = gram.cuda()
+        
+
+    def get_transfer_loss(self, style_img, style_weight):
+        i = 1
+        for layer in list(self.cnn):
+            if isinstance(layer, nn.Conv2d):
+                name = "conv_" + str(i)
+                self.model.add_module(name, layer)
+
+                if name in self.style_layers:
+                    # add style loss:
+                    target_feature = self.model(style_img).clone()
+                    target_feature_gram = self.gram(target_feature)
+                    style_loss = StyleLoss(target_feature_gram, style_weight)
+                    self.model.add_module("style_loss_" + str(i), style_loss)
+                    self.style_losses.append(style_loss)
+            i += 1
+
+    def __call__(self, style_img, style_weight, input_img):
+        print('Building the style transfer model..')
+        get_transfer_loss(style_img, style_weight)
+
+        input_param = nn.Parameter(input_img.data)
+        input_param.data.clamp_(0, 1)
+        self.model(input_param)
+        style_score = 0
+        for sl in self.style_losses:
+            style_score += sl.backward()
+        
+        return style_score
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
