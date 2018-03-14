@@ -84,6 +84,7 @@ class CycleGANModel(BaseModel):
         if len(self.gpu_ids) > 0:
             input_A = input_A.cuda(self.gpu_ids[0], async=True)
             input_B = input_B.cuda(self.gpu_ids[0], async=True)
+            input_C = input_C.cuda(self.gpu_ids[0], async=True)
         self.input_A = input_A
         self.input_B = input_B
         self.input_C = input_C
