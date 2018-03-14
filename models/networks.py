@@ -7,8 +7,6 @@ from torch.optim import lr_scheduler
 
 import torchvision.models as models
 import copy
-from gramMatrix import GramMatrix
-from styleloss import StyleLoss
 ###############################################################################
 # Functions
 ###############################################################################
@@ -201,9 +199,40 @@ class TransferLoss(nn.Module):
         style_score = 0
         for sl in self.style_losses:
             style_score += sl.backward()
-        
+
         return style_score
 
+class GramMatrix(nn.Module):
+    
+    def forward(self, input):
+        a, b, c, d = input.size()
+        # a: batch size
+        # b: number of feature maps
+        # (c, d) = dimensions of a feature map (N=c*d)
+        features = input.view(a * b, c * d)
+        G = torch.mm(features, features.t())
+        return G.div(a * b * c * d)
+
+
+class StyleLoss(nn.Module):
+
+    def __init__(self, target, weight):
+        super(StyleLoss, self).__init__()
+        self.target = target.detach() * weight
+        self.weight = weight
+        self.gram = GramMatrix()
+        self.criterion = nn.MSELoss()
+
+    def forward(self, input):
+        self.output = input.clone()
+        self.G = self.gram(input)
+        self.G.mul_(self.weight)
+        self.loss = self.criterion(self.G, self.target)
+        return self.output
+
+    def backward(self, retain_graph=True):
+        self.loss.backward(retain_graph=retain_graph)
+        return self.loss
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
 # When LSGAN is used, it is basically same as MSELoss,
