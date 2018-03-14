@@ -165,7 +165,7 @@ class TransferLoss(nn.Module):
         self.style_layers = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
         self.cnn = models.vgg19(pretrained=True).features
         self.cnn = self.cnn.cuda()
-        self.cnn = copy.deepcopy(cnn)
+        self.cnn = copy.deepcopy(self.cnn)
         self.style_losses = []
         self.model = nn.Sequential()
         self.gram = GramMatrix()
