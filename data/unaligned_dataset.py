@@ -29,8 +29,6 @@ class UnalignedDataset(BaseDataset):
         self.transform = get_transform(opt)
 
     def __getitem__(self, index):
-        print("Dian: index")
-        print(index)
         A_path = self.A_paths[index % self.A_size]
         if self.opt.serial_batches:
             index_B = index % self.B_size
