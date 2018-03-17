@@ -36,13 +36,13 @@ class CycleGANModel(BaseModel):
             self.netD_C = networks.define_D(opt.input_nc, opt.ndf,
                                             opt.which_model_netD,
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
-        # if not self.isTrain or opt.continue_train:
-        #     which_epoch = opt.which_epoch
-        #     self.load_network(self.netG_A, 'G_A', which_epoch)
-        #     self.load_network(self.netG_B, 'G_B', which_epoch)
-        #     if self.isTrain:
-        #         self.load_network(self.netD_A, 'D_A', which_epoch)
-        #         self.load_network(self.netD_B, 'D_B', which_epoch)
+        if not self.isTrain or opt.continue_train:
+            which_epoch = opt.which_epoch
+            self.load_network(self.netG_A, 'G_A', which_epoch)
+            self.load_network(self.netG_B, 'G_B', which_epoch)
+            if self.isTrain:
+                self.load_network(self.netD_A, 'D_A', which_epoch)
+                self.load_network(self.netD_B, 'D_B', which_epoch)
 
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
@@ -110,6 +110,8 @@ class CycleGANModel(BaseModel):
         self.rec_B = self.netG_A(fake_A).data
         self.fake_A = fake_A.data
 
+        self.real_C = Variable(self.input_C volatile=True).data
+
     # get image paths
     def get_image_paths(self):
         return self.image_paths
@@ -176,9 +178,9 @@ class CycleGANModel(BaseModel):
         pred_fake = self.netD_B(fake_A)
         loss_G_B = self.criterionGAN(pred_fake, True)
 
-        # # GAN loss D_C(G_A(A))
-        # pred_fake = self.netD_C(fake_B)
-        # loss_G_C = self.criterionGAN(pred_fake, True) * lambda_C
+        # GAN loss D_C(G_A(A))
+        pred_fake = self.netD_C(fake_B)
+        loss_G_C = self.criterionGAN(pred_fake, True) * lambda_C
 
 
         # Forward cycle loss
@@ -189,7 +191,7 @@ class CycleGANModel(BaseModel):
         rec_B = self.netG_A(fake_A)
         loss_cycle_B = self.criterionCycle(rec_B, self.real_B) * lambda_B
         # combined loss
-        loss_G = loss_G_A + loss_G_B + loss_cycle_A + loss_cycle_B + loss_idt_A + loss_idt_B
+        loss_G = loss_G_A + loss_G_B + loss_cycle_A + loss_cycle_B + loss_idt_A + loss_idt_B + loss_G_C
         loss_G.backward()
 
         self.fake_B = fake_B.data
@@ -199,7 +201,7 @@ class CycleGANModel(BaseModel):
 
         self.loss_G_A = loss_G_A.data[0]
         self.loss_G_B = loss_G_B.data[0]
-        # self.loss_G_C = loss_G_C.data[0]
+        self.loss_G_C = loss_G_C.data[0]
         self.loss_cycle_A = loss_cycle_A.data[0]
         self.loss_cycle_B = loss_cycle_B.data[0]
 
@@ -235,7 +237,7 @@ class CycleGANModel(BaseModel):
     def get_current_errors(self):
         ret_errors = OrderedDict([('D_A', self.loss_D_A), ('G_A', self.loss_G_A), ('Cyc_A', self.loss_cycle_A),
                                   ('D_B', self.loss_D_B), ('G_B', self.loss_G_B), ('Cyc_B', self.loss_cycle_B), 
-                                  ('D_C', self.loss_D_C)])
+                                  ('D_C', self.loss_D_C), ('G_C',self.loss_G_C)])
         if self.opt.lambda_identity > 0.0:
             ret_errors['idt_A'] = self.loss_idt_A
             ret_errors['idt_B'] = self.loss_idt_B
