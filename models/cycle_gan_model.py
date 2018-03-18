@@ -110,7 +110,7 @@ class CycleGANModel(BaseModel):
         self.rec_B = self.netG_A(fake_A).data
         self.fake_A = fake_A.data
 
-        self.real_C = Variable(self.input_C volatile=True).data
+        self.real_C = Variable(self.input_C, volatile=True).data
 
     # get image paths
     def get_image_paths(self):
